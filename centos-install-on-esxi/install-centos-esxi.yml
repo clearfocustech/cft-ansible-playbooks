@@ -19,6 +19,7 @@
     iso_image: "{{ hostvars[inventory_hostname]['iso_image'] }}"
     ram_mb: "{{ hostvars[inventory_hostname]['ram_mb'] }}"
     cpu_count: "{{ hostvars[inventory_hostname]['cpu_count'] }}"
+    validate_esx_certs: False
  
   tasks:
  
@@ -70,6 +71,7 @@
       folder_name: "{{ vsphere_iso_directory }}"
       folder_type: vm
       state: present
+      validate_certs: "{{ validate_esx_certs }}"
     register: vm_folder_creation_result
     delegate_to: localhost
  
@@ -79,10 +81,11 @@
       username: "{{ vsphere_username }}"
       password: "{{ vsphere_password }}"
       datacenter: "{{ vsphere_datacenter }}"
-      datastore: "{{ vsphere_datastore }}"
+      datastore: "{{ vsphere_iso_datastore }}"
       src: build/{{ inventory_hostname }}.iso
       path: "{{ vsphere_iso_directory }}/{{ inventory_hostname }}.iso"
-      validate_certs: False
+      validate_certs: "{{ validate_esx_certs }}"
+      timeout: 120
  
   - name: cleanup temp directories
     file:
@@ -101,7 +104,7 @@
  
   - name: create vm
     vmware_guest:
-      validate_certs: False
+      validate_certs: "{{ validate_esx_certs }}"
       hostname: "{{ vsphere_hostname }}"
       username: "{{ vsphere_username }}"
       password: "{{ vsphere_password }}"
@@ -128,7 +131,7 @@
   - name: delete custom iso image from datastore
     when: False
     vsphere_copy:
-      validate_certs: False
+      validate_certs: "{{ validate_esx_certs }}"
       hostname: '{{ vsphere_hostname }}'
       username: '{{ vsphere_username }}'
       password: '{{ vsphere_password }}'
