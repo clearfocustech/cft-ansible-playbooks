@@ -1,4 +1,4 @@
-This playbook will provision a new virtual machine in ESXi and install CentOS on it.
+This playbook will provision a new virtual machine in ESXi and install CentOS(or Ubuntu) on it.
 You will need the rpm packages for python-pyvmomi, python-requests, isomd5sum and genisofs on the ansible server
 
 An example ansible hosts file entry for this is below:
@@ -7,3 +7,5 @@ An example ansible hosts file entry for this is below:
 esxi_host is the hostname of the esxi host in vcenter
 
 some variables are set at the top of the playbook, such as the datacenter name and where to store ISO files 
+
+This also works for Ubuntu, just adjust your kickstart configuration as appropriate. 
