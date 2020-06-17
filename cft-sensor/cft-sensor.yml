@@ -15,6 +15,7 @@
         - netsniff-ng
         - bro
         - tcpdump
+        - tshark
 
   - name: configuration for netsniff-ng
     copy:
