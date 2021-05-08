@@ -9,3 +9,5 @@ esxi_host is the hostname of the esxi host in vcenter
 some variables are set at the top of the playbook, such as the datacenter name and where to store ISO files 
 
 This also works for Ubuntu, just adjust your kickstart configuration as appropriate. 
+
+To run it type ansible-playbook ./install-on-esxi.yaml -l hostname_from_hosts_file
