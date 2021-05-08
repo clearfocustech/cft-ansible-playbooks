@@ -10,4 +10,7 @@ some variables are set at the top of the playbook, such as the datacenter name a
 
 This also works for Ubuntu, just adjust your kickstart configuration as appropriate. 
 
-To run it type ansible-playbook ./install-on-esxi.yaml -l hostname_from_hosts_file
+To run it:
+export VSPHERE_USERNAME=myusername
+export VSPHERE_PASSWORD=mypassword
+ansible-playbook ./install-on-esxi.yaml -l hostname_from_hosts_file
