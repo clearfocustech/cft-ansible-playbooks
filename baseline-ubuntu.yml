@@ -1,0 +1,173 @@
+- hosts: all, localhost
+  become: no
+
+  vars:
+    warning_banner: This computer system is for authorized users only. Any or all uses of this system and all files on this system may be intercepted monitored recorded copied audited inspected.
+    syslog_host: syslog.localdomain
+    sshd_approved_macs: hmac-sha2-512,hmac-sha2-256,hmac-sha1-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com
+    sshd_approved_ciphers: aes128-ctr,aes192-ctr,aes256-ctr,aes128-cbc,3des-cbc,aes192-cbc,aes256-cbc
+    org_name: This ORG
+  tasks:
+    - name: warning banner
+      copy:
+        content: "{{ warning_banner }}"
+        dest: /etc/issue
+
+    - name: install base packages
+      package:
+        name: 
+          - aide
+          - net-tools
+          - ufw
+          - openssh-server
+          - k3b
+          - build-essential
+          - openssl
+          - libssl-dev
+          - libcurl4-openssl-dev
+          - zlib1g-dev
+          - libpng-dev
+          - libxml2-dev
+          - libjson-c-dev
+          - libbz2-dev
+          - libpcre2-dev
+          - ncurses-dev
+          - valgrind
+          - check
+          - make
+          - cmake
+          - automake
+          - gcc
+          - libtool
+          - pkg-config
+          - flex
+          - bison
+          - g++
+          - usb-creator-gtk
+          - openjdk-16-jre
+          - git
+          - python3
+          - python3-pip
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+        state: present
+
+
+          
+    - name: Install pip packages
+      pip:
+        name:
+          - pygeoip
+          - dpkt
+          - openpyxl
+          - pillow
+          - scapy
+          - beautifulsoup4
+          - networkx[all]
+          
+    - name: Add Docker Apt signing key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository into sources list
+      ansible.builtin.apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable nightly test
+        state: present
+        filename: docker-ce
+
+    - name: Install Docker packages
+      package:
+        name: 
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+  
+    - name: SSH warning banner
+      lineinfile: 
+        create: yes
+        dest: /etc/ssh/sshd_config
+        regexp: ^Banner
+        line: Banner /etc/issue
+        validate: sshd -t -f %s
+        
+    - name: SSH approved MACs
+      lineinfile: 
+        create: yes
+        dest: /etc/ssh/sshd_config
+        regexp: ^MACs
+        line: "MACs {{ sshd_approved_macs }}"
+        validate: sshd -t -f %s
+        
+    - name: SSH Protocol 2
+      lineinfile: 
+        create: yes
+        dest: /etc/ssh/sshd_config
+        regexp: "^Protocol [0-9]"
+        line: "Protocol 2"
+        validate: sshd -t -f %s
+        
+    - name: SSH approved Ciphers
+      lineinfile: 
+        create: yes
+        dest: /etc/ssh/sshd_config
+        regexp: ^Ciphers
+        line: "Ciphers {{ sshd_approved_ciphers }}"
+        validate: sshd -t -f %s
+
+    - name: Check if AIDE is initialized
+      stat:
+        path: /var/lib/aide/aide.db.gz
+      register: aide_db
+      
+    - name: Initialize AIDE
+      when: aide_db.stat.exists is not defined
+      command: /usr/sbin/aide --init
+      
+    - name: Move AIDE db
+      when: aide_db.stat.exists is defined and aide_db.stat.exists
+      command: mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+
+    - name: Configure AIDE
+      cron:
+        name: run AIDE check
+        minute: 05
+        hour: 04
+        weekday: 0
+        user: root
+        job: "/usr/sbin/aide --check"
+        
+    - name: restart sshd
+      service:
+        name: sshd
+        state: restarted        
+        enabled: yes
+       
+    - name: start ufw
+      service:
+        name: ufw
+        state: restarted        
+        enabled: yes
+
+    - name: Update all packages
+      package: 
+        name: "*"
+        state: latest
+
+    - name: show last login
+      replace: 
+        path: /etc/pam.d/login
+        regexp: 'pam_lastlog.so?$'
+        replace: "pam_lastlog.so showfailed"
+        
+    - name: set login fail delay
+      lineinfile: 
+        create: yes
+        dest: /etc/pam.d/common-auth
+        regexp: 'pam_faildelay.so'
+        line: "auth required pam_faildelay.so delay=400000"
+
