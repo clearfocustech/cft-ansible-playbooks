@@ -122,7 +122,7 @@
     - name: Configure syslog forwarding
       lineinfile:
         create: yes
-        dest: /etc/rsyslog.conf
+        dest: /etc/rsyslog.d/loghost.conf
         regexp: ^\\*\\.\\*
         line: "*.* @@{{ syslog_host }}"
         
