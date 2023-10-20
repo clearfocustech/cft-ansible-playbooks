@@ -118,7 +118,14 @@
         regexp: ^Ciphers
         line: "Ciphers {{ sshd_approved_ciphers }}"
         validate: sshd -t -f %s
-
+        
+    - name: Configure syslog forwarding
+      lineinfile:
+        create: yes
+        dest: /etc/rsyslog.conf
+        regexp: ^\\*\\.\\*
+        line: "*.* @@{{ syslog_host }}"
+        
     - name: Check if AIDE is initialized
       stat:
         path: /var/lib/aide/aide.db.gz
