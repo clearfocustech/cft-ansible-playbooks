@@ -156,12 +156,12 @@
         num_cpus: "{{ cpu_count }}"
       cdrom:
         - controller_type: ide
-          controller_number: 0
+          controller_number: 1
           unit_number: 0
           type: iso
           iso_path: "[{{ vsphere_iso_datastore }}] /{{ vsphere_iso_directory }}/{{ iso_image }}"
         - controller_type: ide
-          controller_number: 0
+          controller_number: 1
           unit_number: 1
           type: iso
           iso_path: "[{{ vsphere_iso_datastore }}] /{{ vsphere_iso_directory }}/{{ inventory_hostname }}.iso"
