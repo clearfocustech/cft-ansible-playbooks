@@ -1,0 +1,181 @@
+- hosts: all
+  connection: local
+  become: no
+
+
+  vars_prompt:
+  - name: "vsphere_username"
+    prompt: "Enter your vsphere username"
+    private: yes
+  - name: "vsphere_password"
+    prompt: "Enter your vsphere password"
+    private: yes
+      
+  vars:
+    esxi_hostname: "{{ hostvars[inventory_hostname]['esxi_host'] }}"
+    esxi_ip: "{{ hostvars[inventory_hostname]['esxi_ip'] }}"
+    vsphere_datacenter: ha-datacenter
+    vsphere_datastore: "{{ hostvars[inventory_hostname]['datastore'] }}"
+    vsphere_iso_datastore: DataStore
+    vsphere_iso_directory: ISOs
+    vsphere_hostname: vcsa
+    vsphere_hostname: "{{ esxi_ip }}"
+    vm_network: "{{ hostvars[inventory_hostname]['vm_network'] }}"
+    iso_image: "{{ hostvars[inventory_hostname]['iso_image'] }}"
+    ram_mb: "{{ hostvars[inventory_hostname]['ram_mb'] }}"
+    cpu_count: "{{ hostvars[inventory_hostname]['cpu_count'] }}"
+    iso_requires_keypress: False # Some Windows ISO install images require a key press to boot the install, if set to true, this will try and rebuild the ISO to skip that. 
+ 
+  tasks:
+ 
+  - command: mktemp -d
+    delegate_to: localhost
+    register: tempdir
+ 
+  - command: mktemp -d
+    delegate_to: localhost
+    register: loopdir
+ 
+  - name: create local build directory
+    file: 
+      path: build
+      state: directory
+
+  - name: extract Windows source iso image
+    when: iso_requires_keypress
+    command: 7z x isos/{{ iso_image }} -o{{ loopdir.stdout }}
+    delegate_to: localhost
+ 
+  - name: copy source Windows iso image contents to Windows iso without boot prompt
+    when: iso_requires_keypress
+    shell: mkisofs -b boot/etfsboot.com -no-emul-boot -c BOOT.CAT -iso-level 4 -J -l -D -N -joliet-long -relaxed-filenames -v -V "Custom" -udf -boot-info-table -eltorito-alt-boot -eltorito-boot efi/microsoft/boot/efisys_noprompt.bin -no-emul-boot -o build/{{ iso_image }}-no-prompt.iso -allow-limited-size "{{ loopdir.stdout }}"
+    delegate_to: localhost
+
+  - name: place autounattend.xml file on dedicated iso image
+    template:
+      src: "{{ playbook_dir }}/templates/autounattend.xml.j2"
+      dest: "{{ tempdir.stdout }}/autounattend.xml"
+ 
+  - name: place autounattend.xml on 2nd iso image
+    #command: mkisofs -r -N -allow-leading-dots -d -J -T -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -V "{{ inventory_hostname_short }}" -boot-load-size 4 -boot-info-table -o build/{{ inventory_hostname }}.iso {{ tempdir.stdout }}
+    command: genisoimage -o build/{{ inventory_hostname }}.iso -J -R -v -T -V 'autounattend.xml' {{ tempdir.stdout }}
+    delegate_to: localhost
+
+  - name: Create a VM folder on given datacenter
+    when: False
+    vcenter_folder:
+      hostname: '{{ vsphere_hostname }}'
+      username: '{{ vsphere_username }}'
+      password: '{{ vsphere_password }}'
+      datacenter_name: "{{ vsphere_datacenter }}"
+      folder_name: "{{ vsphere_iso_directory }}"
+      folder_type: vm
+      state: present
+      validate_certs: False
+    register: vm_folder_creation_result
+    delegate_to: localhost
+
+  - name: Query if Windows ISO already exists, do not constantly re-upload it.
+    when: False
+    vsphere_file:
+      hostname: '{{ vsphere_hostname }}'
+      username: '{{ vsphere_username }}'
+      password: '{{ vsphere_password }}'
+      datacenter_name: "{{ vsphere_datacenter }}"
+      datastore: "{{ vsphere_iso_datastore }}"
+      path: "{{ vsphere_iso_directory }}/{{ iso_image }}.iso"
+      state: file
+    delegate_to: localhost
+    ignore_errors: true
+ 
+  - name: upload Windows ISO with no boot prompt
+    when: iso_requires_keypress
+    vsphere_copy:
+      hostname: "{{ vsphere_hostname }}"
+      username: "{{ vsphere_username }}"
+      password: "{{ vsphere_password }}"
+      datacenter: "{{ vsphere_datacenter }}"
+      datastore: "{{ vsphere_iso_datastore }}"
+      src: build/{{ iso_image }}-no-prompt.iso
+      path: "{{ vsphere_iso_directory }}/{{  iso_image }}-no-prompt.iso"
+      timeout: 360
+      validate_certs: False
+ 
+  - name: upload custom ISO for autounattend.xml
+    vsphere_copy:
+      hostname: "{{ vsphere_hostname }}"
+      username: "{{ vsphere_username }}"
+      password: "{{ vsphere_password }}"
+      datacenter: "{{ vsphere_datacenter }}"
+      datastore: "{{ vsphere_iso_datastore }}"
+      src: build/{{ inventory_hostname }}.iso
+      path: "{{ vsphere_iso_directory }}/{{ inventory_hostname }}.iso"
+      timeout: 360
+      validate_certs: False
+
+  - name: update ISO image to no-prompt version
+    when: iso_requires_keypress
+    set_fact: 
+      iso_image: "{{ iso_image }}-no-prompt.iso"
+ 
+  - name: cleanup temp directories
+    file:
+      path: "{{ loopdir.stdout }}"
+      state: absent
+ 
+  - name: cleanup temp directories
+    file:
+      path: "{{ tempdir.stdout }}"
+      state: absent
+ 
+  - name: cleanup custom iso from build directory
+    file:
+      path: build/{{ inventory_hostname }}.iso
+      state: absent
+ 
+  - name: create vm
+    vmware_guest:
+      validate_certs: False
+      hostname: "{{ vsphere_hostname }}"
+      username: "{{ vsphere_username }}"
+      password: "{{ vsphere_password }}"
+      datacenter: "{{ vsphere_datacenter }}"
+      esxi_hostname: "{{ esxi_hostname }}"
+      folder: /
+      name: "{{ inventory_hostname }}"
+      guest_id: centos64Guest
+      state: poweredon
+      disk:
+        - size_gb: 32
+          type: thin
+          datastore: "{{ vsphere_datastore }}"
+      networks:
+        - name: "{{ vm_network }}"
+      hardware:
+        memory_mb: "{{ ram_mb }}"
+        num_cpus: "{{ cpu_count }}"
+      cdrom:
+        - controller_type: ide
+          controller_number: 0
+          unit_number: 0
+          type: iso
+          iso_path: "[{{ vsphere_iso_datastore }}] /{{ vsphere_iso_directory }}/{{ iso_image }}"
+        - controller_type: ide
+          controller_number: 0
+          unit_number: 1
+          type: iso
+          iso_path: "[{{ vsphere_iso_datastore }}] /{{ vsphere_iso_directory }}/{{ inventory_hostname }}.iso"
+
+
+  - name: delete custom iso image from datastore
+    when: False 
+    vsphere_copy:
+      validate_certs: False
+      hostname: '{{ vsphere_hostname }}'
+      username: '{{ vsphere_username }}'
+      password: '{{ vsphere_password }}'
+      datacenter: "{{ vsphere_datacenter }}"
+      datastore: "{{ vsphere_datastore }}"
+      path: "{{ vsphere_iso_directory }}/{{ inventory_hostname }}.iso"
+      state: absent
+    delegate_to: localhost
