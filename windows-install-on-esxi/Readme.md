@@ -1,3 +1,10 @@
+### System Requirements
+- These playbooks call linux commands and must run on an Linux Ansible host
+- genisoimage must be installed to rebuild the Windows ISOs to make them bootable
+- pyVMomi (pyhton3-pyvmomim) must be installed
+- p7zip is needed to extract the Windows ISOs to make them bootable
+
+
 ### Notes
 - The License key (win_key) must match the verison and product of Windows on the ISO image. This respository currently uses 2019 Essentials
 - The disk partitioning in autounattend.xml must match the drives and UEFI or BIOS. ESXi 7 uses EFI, so this template matches that.
@@ -9,3 +16,7 @@
 - To run this playbook from the LInux CLI: ansible-playbook ./install-windows-esxi.yml -l test-win10 -i inventory.txt -b -k -K -u root
 - The esxi_host variable must be the name of the ESXi server, from its perspective (not neccessarily matching DNS)
 - The script will prompt for the credentials for vsphere, user root and the password to the esxi host (even if you have vcenter)
+- The boot_firmware for the vm (either bios or efi) must match the disk configuration in the autounattend.xml 
+
+- The vmware guest_id is hardcoided to WIndows9_64Guest
+- The autoattend.xml for Server 2019 includes commands to make it the domain controller
