@@ -1,0 +1,21 @@
+Install-WindowsFeature AD-Domain-Services -IncludeAllSubFeature -IncludeManagementTools
+Import-Module ADDSDeployment
+
+$DSRMPassword = ConvertTo-SecureString {{ hostvars[inventory_hostname]['dsrm_pass'] }} -AsPlainText -Force
+
+$forestProperties = @{
+
+    DomainName           = "{{ hostvars[inventory_hostname]['domain_name'] }}"
+    ForestMode           = 7
+    DomainMode           = 7
+    InstallDns           = $true
+    DatabasePath         = "C:\Windows\NTDS"
+    LogPath              = "C:\Windows\NTDS"
+    SysvolPath           = "C:\Windows\SYSVOL"
+    NoRebootOnCompletion = $false
+    Force                = $true
+    SafeModeAdministratorPassword = $DSRMPassword
+
+}
+
+Install-ADDSForest @forestProperties

@@ -1,0 +1,5 @@
+$password = ConvertTo-SecureString {{ hostvars[inventory_hostname]['domain_admin_pass'] }} -AsPlainText -Force
+$username = "{{ hostvars[inventory_hostname]['domain_admin'] }}"
+[pscredential]$credObject = New-Object System.Management.Automation.PSCredential ($username,$password)
+
+Add-Computer -DomainName {{ hostvars[inventory_hostname]['domain_name']  }} -Credential $credObject -Restart
