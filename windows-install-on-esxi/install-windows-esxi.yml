@@ -16,9 +16,9 @@
     esxi_ip: "{{ hostvars[inventory_hostname]['esxi_ip'] }}"
     vsphere_datacenter: ha-datacenter
     vsphere_datastore: "{{ hostvars[inventory_hostname]['datastore'] }}"
-    vsphere_iso_datastore: DataStore
+    vsphere_iso_datastore: QNAPDataStore
     vsphere_iso_directory: ISOs
-    vsphere_hostname: vcsa
+    vsphere_hostname: vcsa.lab.clearfocustech.com
     vsphere_hostname: "{{ esxi_ip }}"
     vm_network: "{{ hostvars[inventory_hostname]['vm_network'] }}"
     iso_image: "{{ hostvars[inventory_hostname]['iso_image'] }}"
@@ -34,88 +34,50 @@
     delegate_to: localhost
     register: tempdir
  
-  - command: mktemp -d
-    delegate_to: localhost
-    register: loopdir
- 
-  - name: create local build directory
+  - name: ensure local build directory exists
     file: 
       path: build
       state: directory
 
-  - name: extract Windows source iso image
-    when: iso_requires_keypress
-    command: 7z x isos/{{ iso_image }} -o{{ loopdir.stdout }}
+  - name: Query if Windows ISO already exists, do not constantly re-upload it.
+    vsphere_file:
+      host: "{{ vsphere_hostname }}"
+      username: "{{ vsphere_username }}"
+      password: "{{ vsphere_password }}"
+      datacenter: "{{ vsphere_datacenter }}"
+      datastore: "{{ vsphere_iso_datastore }}"
+      path: "{{ vsphere_iso_directory }}/{{ iso_image }}"
+      state: file
+      validate_certs: False
     delegate_to: localhost
- 
-  - name: copy source Windows iso image contents to Windows iso without boot prompt
-    when: iso_requires_keypress
-    shell: mkisofs -b boot/etfsboot.com -no-emul-boot -c BOOT.CAT -iso-level 4 -J -l -D -N -joliet-long -relaxed-filenames -v -V "Custom" -udf -boot-info-table -eltorito-alt-boot -eltorito-boot efi/microsoft/boot/efisys_noprompt.bin -no-emul-boot -o build/{{ iso_image }}-no-prompt.iso -allow-limited-size "{{ loopdir.stdout }}"
-    delegate_to: localhost
+    register: iso_exists
+    ignore_errors: true
 
-  - name: place autounattend.xml file on dedicated iso image
+  - name: place autounattend.xml file on custom iso image
     template:
       src: "{{ playbook_dir }}/templates/{{ unattend }}.j2"
       dest: "{{ tempdir.stdout }}/autounattend.xml"
  
-  - name: place ip-hostname.ps1 on another iso image
+  - name: place ip-hostname.ps1 on custom iso image
     template:
       src: "{{ playbook_dir }}/templates/ip-hostname.ps1.j2"
       dest: "{{ tempdir.stdout }}/ip-hostname.ps1"
  
-  - name: place create-domain.ps1 on another iso image
-    template:
-      src: "{{ playbook_dir }}/templates/create-domain.ps1.j2"
-      dest: "{{ tempdir.stdout }}/create-domain.ps1"
- 
-  - name: place domain-join.ps1 on another iso image
-    template:
-      src: "{{ playbook_dir }}/templates/domain-join.ps1.j2"
-      dest: "{{ tempdir.stdout }}/domain-join.ps1"
- 
-  - name: place autounattend.xml on 2nd iso image
+  - name: create custom autounattend iso image
     #command: mkisofs -r -N -allow-leading-dots -d -J -T -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -V "{{ inventory_hostname_short }}" -boot-load-size 4 -boot-info-table -o build/{{ inventory_hostname }}.iso {{ tempdir.stdout }}
     command: genisoimage -o build/{{ inventory_hostname }}.iso -J -R -v -T -V 'autounattend.xml' {{ tempdir.stdout }}
     delegate_to: localhost
 
-  - name: Create a VM folder on given datacenter
-    when: False
-    vcenter_folder:
-      hostname: '{{ vsphere_hostname }}'
-      username: '{{ vsphere_username }}'
-      password: '{{ vsphere_password }}'
-      datacenter_name: "{{ vsphere_datacenter }}"
-      folder_name: "{{ vsphere_iso_directory }}"
-      folder_type: vm
-      state: present
-      validate_certs: False
-    register: vm_folder_creation_result
-    delegate_to: localhost
-
-  - name: Query if Windows ISO already exists, do not constantly re-upload it.
-    vsphere_file:
-      host: '{{ vsphere_hostname }}'
-      username: '{{ vsphere_username }}'
-      password: '{{ vsphere_password }}'
-      datacenter: "{{ vsphere_datacenter }}"
-      datastore: "{{ vsphere_iso_datastore }}"
-      path: "{{ vsphere_iso_directory }}/{{ iso_image }}.iso"
-      state: file
-    delegate_to: localhost
-    register: iso_exists
-    delegate_to: localhost
-    ignore_errors: true
- 
-  - name: upload Windows ISO with no boot prompt
-    when: iso_requires_keypress and not iso_exists
+  - name: upload Windows ISO 
+    when: iso_exists.state == "absent"
     vsphere_copy:
       hostname: "{{ vsphere_hostname }}"
       username: "{{ vsphere_username }}"
       password: "{{ vsphere_password }}"
       datacenter: "{{ vsphere_datacenter }}"
       datastore: "{{ vsphere_iso_datastore }}"
-      src: build/{{ iso_image }}-no-prompt.iso
-      path: "{{ vsphere_iso_directory }}/{{  iso_image }}-no-prompt.iso"
+      src: build/{{ iso_image }}
+      path: "{{ vsphere_iso_directory }}/{{  iso_image }}"
       timeout: 360
       validate_certs: False
  
@@ -131,16 +93,6 @@
       timeout: 360
       validate_certs: False
 
-  - name: update ISO image to no-prompt version
-    when: iso_requires_keypress
-    set_fact: 
-      iso_image: "{{ iso_image }}-no-prompt.iso"
- 
-  - name: cleanup temp directories
-    file:
-      path: "{{ loopdir.stdout }}"
-      state: absent
- 
   - name: cleanup temp directories
     file:
       path: "{{ tempdir.stdout }}"
