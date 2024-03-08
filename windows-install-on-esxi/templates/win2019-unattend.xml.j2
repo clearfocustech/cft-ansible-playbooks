@@ -65,7 +65,7 @@ Notes: Enter your comments here...
 
 <UserData>
 <AcceptEula>true</AcceptEula>
-<FullName>ladmin</FullName>
+<FullName>{{ hostvars[inventory_hostname]['local_admin'] }}</FullName>
 <Organization>Organization</Organization>
 <ProductKey>
 <Key>{{ hostvars[inventory_hostname]['win_key'] }}</Key>
@@ -113,12 +113,7 @@ Notes: Enter your comments here...
         <RunSynchronousCommand wcm:action="add">
             <Order>1</Order>
             <Description>Set Execution Policy 64 Bit</Description>
-            <Path>cmd.exe /c powershell.exe -noprofile -ExecutionPolicy unrestricted e:\ip-hostname.ps1</Path>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-            <Order>2</Order>
-            <Description>Set Execution Policy 64 Bit</Description>
-            <Path>cmd.exe /c powershell.exe -noprofile -ExecutionPolicy unrestricted e:\create-domain.ps1</Path>
+            <Path>cmd.exe /c powershell.exe -noprofile -ExecutionPolicy unrestricted e:\ip-hostname.ps1 > C:\Windows\temp\ansible-install.txt  </Path>
         </RunSynchronousCommand>
     </RunSynchronous>
 </component>
@@ -136,11 +131,11 @@ Notes: Enter your comments here...
 <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <AutoLogon>
 <Password>
-<Value>Password!</Value>
+<Value>{{ hostvars[inventory_hostname]['local_admin_pass'] }}</Value>
 <PlainText>true</PlainText>
 </Password>
 <Enabled>false</Enabled>
-<Username>ladmin</Username>
+<Username>{{ hostvars[inventory_hostname]['local_admin'] }}</Username>
 </AutoLogon>
 
 <OOBE>
@@ -161,15 +156,15 @@ Notes: Enter your comments here...
 <TimeZone>Eastern Standard Time</TimeZone>
 <UserAccounts>
 <AdministratorPassword>
-<Value>Password!</Value>
+<Value>{{ hostvars[inventory_hostname]['local_admin_pass'] }}</Value>
 <PlainText>true</PlainText>
 </AdministratorPassword>
 <LocalAccounts>
 <LocalAccount wcm:action="add">
-<Description>ladmin</Description>
-<DisplayName>ladmin</DisplayName>
+<Description>{{ hostvars[inventory_hostname]['local_admin'] }}</Description>
+<DisplayName>{{ hostvars[inventory_hostname]['local_admin'] }}</DisplayName>
 <Group>Administrators</Group>
-<Name>ladmin</Name>
+<Name>{{ hostvars[inventory_hostname]['local_admin'] }}</Name>
 </LocalAccount>
 </LocalAccounts>
 </UserAccounts>
